@@ -29,16 +29,11 @@ bool timeFlag=true;
 const byte pushButtonInterruptPin =0;
 static uint8_t hexArray[17] = "0123456789abcdef";
 
-bool useEx = true;
-
 //-----------------------------------------------------------------------------
 void errorHalt(const char* msg) {
     sdEx.errorHalt(msg);
 }
-//------------------------------------------------------------------------------
-uint32_t kHzSdClk() {
-  return sdEx.card()->kHzSdClk(); 
-}  
+
 //-----------------------------------------------------------------------------
 
 void CAN_Capture(){
@@ -212,19 +207,6 @@ void sdCardSetUp(){
   file.println("date Tue Jun 7 08:33:34 AM 2016");
   file.println("base hex timestamps absolute"); 
 }
-//----------------------------------------------------------------------------
-static void hexDump(uint8_t dumpLen, uint8_t *bytePtr)
-{
-  uint8_t working;
-  while( dumpLen-- ) {
-    working = *bytePtr++;
-    Serial.write( hexArray[ working>>4 ] );
-    Serial.write( hexArray[ working&15 ] );
-  }
-  Serial.write('\r');
-  Serial.write('\n');
-}
-
 
 // -------------------------------------------------------------
 
