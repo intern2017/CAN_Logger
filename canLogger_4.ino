@@ -11,8 +11,9 @@ FlexCAN CANbus0(250000, 0,1,1);
 FlexCAN CANbus1(250000, 1);
 SdFatSdioEX sdEx;
 File file;
-
 static CAN_message_t rxmsg;
+
+
 byte fileNumber;
 char fileName[12];
 unsigned long time;  //Used for time stamp
@@ -21,22 +22,35 @@ unsigned long currentTime;
 String tempStrHolder="";   //Temporarily holds a string for formatting
 String tempTimeHolder="";  //Temporarily holds the time value
 
-int ledPin =1;  //The indicator LED
-
+int yellowLED=10;
+int greenLED =9;
+int redLED=11;
+int ledGround =12;
 int ledState=LOW;
-int turnOff =A9; //When this pin is set high power will be cut off
+
+int lowBatteryDetect =8;
+int lowBatteryDetectGround = 5;
+int offSwitchDetect = 13;
+int pwrEnableDisable =16; //LOW = power supply off
 bool timeFlag=true;
-const byte pushButtonInterruptPin =0;
-static uint8_t hexArray[17] = "0123456789abcdef";
+
 
 //-----------------------------------------------------------------------------
 void errorHalt(const char* msg) {
     sdEx.errorHalt(msg);
+    //while(true){
+      //digitalWrite(yellowLED,HIGH);
+      //delay(250);
+      //digitalWrite(yellowLED,LOW);
+      //digitalWrite(redLED,HIGH);
+      //delay(250);
+      //digitalWrite(redLED,LOW);
+    //}
 }
 
 //-----------------------------------------------------------------------------
 
-void CAN_Capture(){
+void CAN_Capture(){ 
   while(true){
     if(timeFlag)  //After the first iteration timeFlag is changed to false and will never be true again
      {
@@ -45,11 +59,10 @@ void CAN_Capture(){
      
      currentTime = millis()-startUpTime;  //Gives the time only the CAN bus has been active
      
-     if( !CANbus0.available() && !CANbus1.available() && !timeFlag && (currentTime-time)>3000) // Times out and shuts down of the CAN bus becomes inactive.
+     if( !CANbus0.available() && !CANbus1.available() && !timeFlag && (currentTime-time)>3000) // Times out and closes the file if the CAN bus becomes inactive.
      {
       file.close();
-      digitalWrite(ledPin,LOW);
-      digitalWrite(turnOff,HIGH);
+      digitalWrite(yellowLED,HIGH);
      }
      
      if (CANbus0.read(rxmsg))    //while messages are available perform the following
@@ -57,7 +70,7 @@ void CAN_Capture(){
         if (pauseLed.check() ==1)
         {
            ledState= !ledState; 
-           digitalWrite(ledPin, ledState);  //set the LED with the ledState of the variable:
+           digitalWrite(greenLED, ledState);  //set the LED with the ledState of the variable:
         }
         timeFlag=false;
         String CANStr(""); 
@@ -115,7 +128,7 @@ void CAN_Capture(){
         if (pauseLed.check() ==1)
         {
            ledState= !ledState; 
-           digitalWrite(ledPin, ledState);  //set the LED with the ledState of the variable:
+           digitalWrite(greenLED, ledState);  //set the LED with the ledState of the variable:
         }
         timeFlag=false;
         String CANStr(""); 
@@ -169,11 +182,37 @@ void CAN_Capture(){
   }
   
 }
-
+//----------------------------------------------------------------------------
+void ledPinsSetup(){
+    pinMode(greenLED,OUTPUT);
+    pinMode(yellowLED,OUTPUT);
+    pinMode(redLED,OUTPUT);
+    pinMode(ledGround,OUTPUT);
+    
+    digitalWrite(greenLED,HIGH);
+    digitalWrite(yellowLED,LOW);
+    digitalWrite(redLED,LOW);
+    digitalWrite(ledGround,LOW);
+}
+//----------------------------------------------------------------------------
+void lowBattWarning(){
+  noInterrupts();
+  digitalWrite(greenLED,LOW);
+  digitalWrite(yellowLED,LOW);
+  file.close();
+  digitalWrite(pwrEnableDisable,LOW);
+  while(true){
+    digitalWrite(redLED,HIGH);
+    delay(1000);
+    digitalWrite(redLED,LOW);
+    delay(1000);
+  }
+}
+//----------------------------------------------------------------------------
 void disablePwrSup(){
   file.close();
   delay(10);
-  digitalWrite(16,LOW);
+  digitalWrite(pwrEnableDisable,LOW);
 }
 //-----------------------------------------------------------------------------
 void CANTranceiverPinSetUp(){
@@ -212,31 +251,45 @@ void sdCardSetUp(){
 
 void setup() {
   //Serial.begin(9600);
-  pinMode(16,OUTPUT);
-  //digitalWrite(16,HIGH);
-  pinMode(13,INPUT_PULLUP);
+  pinMode(pwrEnableDisable,OUTPUT);
+  pinMode(lowBatteryDetect,INPUT);
+  pinMode(lowBatteryDetectGround,OUTPUT);
+  digitalWrite(lowBatteryDetectGround,LOW);
+  pinMode(offSwitchDetect,INPUT_PULLUP);
   pinMode(15,OUTPUT);
   digitalWrite(15,LOW);
-  attachInterrupt(digitalPinToInterrupt(13), disablePwrSup, FALLING);
+  attachInterrupt(digitalPinToInterrupt(offSwitchDetect), disablePwrSup, FALLING);
+  attachInterrupt(digitalPinToInterrupt(lowBatteryDetect), lowBattWarning, RISING);
   CANTranceiverPinSetUp();  
- 
+  ledPinsSetup();
   sdCardSetUp();
 
   canSetUp();
-  digitalWrite(16,HIGH);
+  //ledPinsSetup();
+   // pinMode(greenLED,OUTPUT);
+   // pinMode(yellowLED,OUTPUT);
+   // pinMode(redLED,OUTPUT);
+   // pinMode(ledGround,OUTPUT);
+
+   // digitalWrite(greenLED,HIGH);
+   // digitalWrite(yellowLED,LOW);
+   // digitalWrite(redLED,LOW);
+   // digitalWrite(ledGround,LOW);
+  digitalWrite(pwrEnableDisable,HIGH);
 }
 
 void loop() {
-  //digitalWrite(16,HIGH);
-  digitalWrite(turnOff,LOW);
+  
+  
   while(!CANbus0.available() && !CANbus1.available()){
-    digitalWrite(ledPin,HIGH);
-    if(millis()>300000){    //Shuts down if it does not see CAN massages within 5 minuets;
+    digitalWrite(greenLED,HIGH);
+    if(millis()>300000){    //Shuts down if it does not see CAN massages within 5 minuets; 
       file.close();
-      digitalWrite(turnOff,HIGH);
+      digitalWrite(greenLED,LOW);
+      digitalWrite(yellowLED,HIGH);
     }
   }
 
-  digitalWrite(ledPin,LOW);
+  digitalWrite(greenLED,LOW);
   CAN_Capture();  //Save what is on the bus
 }
